@@ -7,7 +7,7 @@ from email.mime.text import MIMEText
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from crewai import Agent, Task, Crew, Process
+from crewai import Agent, Task, Crew, Process, LLM
 
 app = FastAPI()
 
@@ -48,13 +48,27 @@ def send_confirmation_email(email: str, name: str, details: dict):
 def send_business_notification_email(details: dict):
     return True
 
-# 4. CrewAI Agent & Task Setup 
+# 4. CrewAI Environment & Model Configuration
+# Explicitly pull the API Key from Render's environment settings
+api_key_from_env = os.getenv("OPENAI_API_KEY", "")
+
+# Backup Safeguard: Force-feed the token directly into the runtime's environment table
+if api_key_from_env:
+    os.environ["OPENAI_API_KEY"] = api_key_from_env
+
+# Build an isolated, explicit LLM instance bypassing automatic system lookup
+custom_llm = LLM(
+    model="gpt-4o-mini",
+    api_key=api_key_from_env
+)
+
+# 5. CrewAI Agent & Task Setup 
 electrical_analyst = Agent(
     role="VoltShield Electrical Safety Expert",
     goal="Analyze reported electrical symptoms and prioritize risk levels.",
     backstory="An expert electrical engineer specializing in identifying hazards and triaging home electrical problems.",
     verbose=True,
-    llm="gpt-4o-mini",
+    llm=custom_llm,
 )
 
 analyze_issue_task = Task(
@@ -73,7 +87,7 @@ voltshield_crew = Crew(
     process=Process.sequential,
 )
 
-# 5. Application Routes (Endpoints)
+# 6. Application Routes (Endpoints)
 @app.get("/")
 def home():
     return {"message": "VoltShield Compliance & AI Backend is Online!", "status": "ready"}
