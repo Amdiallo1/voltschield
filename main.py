@@ -52,16 +52,20 @@ def send_booking_email(booking: Booking, ai_report: str):
         "html": html_content
     })
 
-@app.post("/submit-booking")
-async def submit_booking(booking: Booking):
+@app.post("/run-crew")
+async def run_crew(request: CustomerRequest):
     try:
-        # 1. Define the Electrical Expert Agent
-        analyst = Agent(
-            role="Senior Electrical Triage Expert",
-            goal="Analyze customer requests to determine project scope, required materials, and safety priorities.",
-            backstory="You are an expert electrician with decades of field experience. You look at client descriptions, identify core hazards (like exposed wiring or overload signs), and outline technical requirements.",
-            verbose=False,
-            memory=False
+        # ❌ This line crashes because it runs synchronously inside FastAPI's async loop
+        result = voltshield_crew.kickoff(inputs={
+            "customer_name": request.customer_name,
+            "email": request.email,
+            "issue_description": request.issue_description
+        })
+        return {"status": "success", "message": result}
+    except Exception as e:
+        return {"status": "error", "message": f"AI Crew failed to process your request: {str(e)}"}
+
+            
         )
 
         # 2. Define the Communications Strategist Agent
