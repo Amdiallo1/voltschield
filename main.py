@@ -23,13 +23,20 @@ def run_ai_analysis(customer_name: str, email: str, issue: str):
 
 # 3. Your new Endpoint
 @app.post("/run-crew")
-async def run_crew(request: CustomerRequest, background_tasks: BackgroundTasks):
-    # This triggers the AI task without waiting for it to finish
-    background_tasks.add_task(
-        run_ai_analysis, 
-        request.customer_name, 
-        request.email, 
-        request.issue_description
+def run_crew(request: CustomerRequest):
+    print("DEBUG: Entered the synchronous task function!")
+    try:
+        # --- YOUR AGENT LOGIC HERE ---
+        print(f"Starting analysis for {request.customer_name}...")
+        
+        # INSERT YOUR CREWAI CODE HERE
+        # e.g., result = crew.kickoff()
+        
+        return {"status": "success", "message": "Task completed successfully"}
+        
+    except Exception as e:
+        print(f"DEBUG: CRASHED with error: {e}")
+        return {"status": "error", "message": str(e)}
     )
     
     # Send an immediate response back to the user
