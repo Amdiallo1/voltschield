@@ -1,4 +1,5 @@
 import os
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -24,7 +25,7 @@ def read_root():
     return {"message": "VoltShield Compliance & AI Backend is Online!", "status": "ready"}
 
 @app.post("/run-crew")
-def run_crew(request: CustomerRequest):
+async def run_crew(request: CustomerRequest):
     try:
         analyst = Agent(
             role="Senior Electrical Triage Expert",
@@ -45,7 +46,9 @@ def run_crew(request: CustomerRequest):
         )
         
         crew = Crew(agents=[analyst], tasks=[analysis_task], verbose=True)
-        result = crew.kickoff()
+        
+        # Async execution to eliminate the loop conflict
+        result = await crew.kickoff_async()
         
         return {"status": "success", "message": str(result)}
         
