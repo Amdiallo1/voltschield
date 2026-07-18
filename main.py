@@ -4,21 +4,24 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# Initialize FastAPI
-app = FastAPI(title="Voltshield Electrical Backend")
+# 🤖 CrewAI Imports
+from crewai import Agent, Task, Crew, Process
 
-# 🔒 FIX 1: Allow GitHub Pages to talk to Render without browser blocks
+# Initialize FastAPI
+app = FastAPI(title="Voltshield Electrical Engine")
+
+# Allow GitHub Pages to connect seamlessly
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://amdiallo1.github.io"],  # Your frontend URL
+    allow_origins=["https://amdiallo1.github.io"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows POST, GET, etc.
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
 resend.api_key = os.getenv("RESEND_API_KEY")
+# CrewAI automatically uses the environment variable named: OPENAI_API_KEY
 
-# Data Schema (Matches your GitHub frontend form)
 class Booking(BaseModel):
     fullName: str
     email: str
@@ -27,54 +30,82 @@ class Booking(BaseModel):
     inspectionDate: str
     notes: str
 
-# Email Service Layer
-def send_booking_email(booking: Booking, crew_analysis: str = ""):
-    # We can inject what the Crew found right into the email html below!
+def send_booking_email(booking: Booking, ai_report: str):
     html_content = f"""
-    <h3>⚡ New Booking Received via Voltshield</h3>
-    <p><strong>Name:</strong> {booking.fullName}</p>
-    <p><strong>Email:</strong> {booking.email}</p>
-    <p><strong>Phone:</strong> {booking.phone}</p>
-    <p><strong>Service:</strong> {booking.serviceType}</p>
-    <p><strong>Date Request:</strong> {booking.inspectionDate}</p>
-    <p><strong>Notes:</strong> {booking.notes}</p>
+    <h3>⚡ New Booking Processed by CrewAI Agents</h3>
+    <p><strong>Customer:</strong> {booking.fullName}</p>
+    <p><strong>Email:</strong> {booking.email} | <strong>Phone:</strong> {booking.phone}</p>
+    <p><strong>Requested Service:</strong> {booking.serviceType}</p>
+    <p><strong>Target Date:</strong> {booking.inspectionDate}</p>
+    <p><strong>Client Input:</strong> "{booking.notes}"</p>
+    
+    <hr style="border: 1px solid #cbd5e1;">
+    <h3 style="color: #f59e0b;">🤖 Agent Intake & Assessment Report:</h3>
+    <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; font-family: monospace; white-space: pre-wrap;">
+    {ai_report}
+    </div>
     """
-    if crew_analysis:
-        html_content += f"<hr><h4>🤖 CrewAI Agent Analysis:</h4><p>{crew_analysis}</p>"
-
     return resend.Emails.send({
         "from": "onboarding@resend.dev",
         "to": "amdiallo1@yandex.com", 
-        "subject": f"New Booking: {booking.serviceType} - {booking.fullName}",
+        "subject": f"⚡ AI Intake: {booking.serviceType} - {booking.fullName}",
         "html": html_content
     })
 
-# API Route
 @app.post("/submit-booking")
 async def submit_booking(booking: Booking):
     try:
-        # 🤖 FIX 2: This is exactly where your CrewAI kickoff maps the inputs
-        # If your Crew files are imported, you would uncomment and use this:
-        # 
-        # crew_inputs = {
-        #     "customer_name": booking.fullName,
-        #     "email": booking.email,
-        #     "phone": booking.phone,
-        #     "service_requested": booking.serviceType,
-        #     "date": booking.inspectionDate,
-        #     "client_notes": booking.notes
-        # }
-        # crew_result = your_voltshield_crew.kickoff(inputs=crew_inputs)
-        # crew_analysis_text = str(crew_result)
-        
-        # For now, we pass an empty string until you drop your agent definitions in
-        crew_analysis_text = "Crew processing placeholder (Ready to hook up your agents!)"
+        # 1. Define the Electrical Expert Agent
+        analyst = Agent(
+            role="Senior Electrical Triage Expert",
+            goal="Analyze customer requests to determine project scope, required materials, and safety priorities.",
+            backstory="You are an expert electrician with decades of field experience. You look at client descriptions, identify core hazards (like exposed wiring or overload signs), and outline technical requirements.",
+            verbose=False,
+            memory=False
+        )
 
-        # Send the email alert out with the details
-        send_booking_email(booking, crew_analysis=crew_analysis_text)
+        # 2. Define the Communications Strategist Agent
+        strategist = Agent(
+            role="Voltshield Customer Liaison",
+            goal="Draft a highly professional operational response blueprint and next steps roadmap.",
+            backstory="You bridge the gap between heavy technical jargon and elite customer care. You summarize operational steps and make sure the customer feels valued and safe.",
+            verbose=False,
+            memory=False
+        )
+
+        # 3. Create the tasks passing the booking data directly into the prompts
+        task_analysis = Task(
+            description=f"""Analyze the following customer booking data:
+            - Service Category: {booking.serviceType}
+            - Customer Notes: "{booking.notes}"
+            Identify potential hazards, specific tools or parts that will likely be needed, and a ballpark complexity score (Low/Medium/High).""",
+            expected_output="A structured technical breakdown listing hazards, preparation steps, and necessary tools.",
+            agent=analyst
+        )
+
+        task_roadmap = Task(
+            description="Review the technical breakdown. Generate a brief internal dispatch summary and a 3-step action item plan for the team to reference before contacting the client.",
+            expected_output="A clean dashboard summary with clear, immediate actionable next steps.",
+            agent=strategist
+        )
+
+        # 4. Fire up the crew sequentially
+        voltshield_crew = Crew(
+            agents=[analyst, strategist],
+            tasks=[task_analysis, task_roadmap],
+            process=Process.sequential
+        )
+
+        # Kickoff the agent workflow using your OpenAI Account
+        crew_result = voltshield_crew.kickoff()
+        ai_report = str(crew_result)
+
+        # 5. Send out the email alert containing the AI's deep insights
+        send_booking_email(booking, ai_report=ai_report)
         
-        return {"status": "success", "message": "Booking received and agents notified!"}
+        return {"status": "success", "message": "Booking received and analyzed by your crew!"}
         
     except Exception as e:
-        print(f"DEBUG: Operation failed - {e}")
+        print(f"DEBUG: Crew execution or mail delivery failed: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+     
