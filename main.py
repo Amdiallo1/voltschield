@@ -104,7 +104,7 @@ def send_business_notification_email(details: dict):
         """
         msg.attach(MIMEText(html, "html"))
 
-        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
+        with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10) as server:
             server.login(SENDER_EMAIL, SENDER_PASSWORD)
             server.sendmail(SENDER_EMAIL, BUSINESS_EMAIL, msg.as_string())
         return True
