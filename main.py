@@ -53,19 +53,43 @@ def send_booking_email(booking: Booking, ai_report: str):
     })
 
 @app.post("/run-crew")
-async def run_crew(request: CustomerRequest):
+def run_crew(request: CustomerRequest):  # 1. Matches your new route path & data schema, 'async' removed!
     try:
-        # ❌ This line crashes because it runs synchronously inside FastAPI's async loop
-        result = voltshield_crew.kickoff(inputs={
-            "customer_name": request.customer_name,
-            "email": request.email,
-            "issue_description": request.issue_description
-        })
-        return {"status": "success", "message": result}
+        # 2. Define the Electrical Expert Agent inside a safe synchronous thread
+        analyst = Agent(
+            role="Senior Electrical Triage Expert",
+            goal="Analyze customer requests to determine project scope, required materials, and safety priorities.",
+            backstory="You are an expert electrician with decades of field experience. You look at client descriptions, identify core hazards (like exposed wiring or overload signs), and outline technical requirements.",
+            verbose=False,
+            memory=False
+        )
+        
+        # 3. Define the specific task for your agent
+        analysis_task = Task(
+            description=(
+                f"Analyze the following problem submitted by {request.customer_name} ({request.email}):\n"
+                f"\"{request.issue_description}\"\n\n"
+                "Identify potential hazards, project scale, and required safety steps."
+            ),
+            expected_output="A detailed summary outlining safety concerns, estimated project type, and material recommendations.",
+            agent=analyst
+        )
+        
+        # 4. Form the Crew and kickoff synchronously
+        crew = Crew(
+            agents=[analyst],
+            tasks=[analysis_task],
+            verbose=False
+        )
+        
+        result = crew.kickoff()
+        
+        # 5. Return the response string cleanly to your client
+        return {"status": "success", "message": str(result)}
+        
     except Exception as e:
         return {"status": "error", "message": f"AI Crew failed to process your request: {str(e)}"}
-
-            
+          
         )
 
         # 2. Define the Communications Strategist Agent
