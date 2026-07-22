@@ -1,4 +1,5 @@
 import os
+import resend
 import asyncio
 import smtplib
 from email.mime.text import MIMEText
@@ -6,6 +7,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from crewai import Agent, Task, Crew
+
+resend.api_key = os.environ.get("RESEND_API_KEY")
 
 app = FastAPI(title="VoltShield API")
 
@@ -45,21 +48,19 @@ def send_owner_email(request: CustomerRequest):
         "subject": f"New VoltShield Request from {request.customer_name}",
         "text": email_content,
     }
-    resend.Emails.send(params)  # <--- MAKE SURE THIS LINE IS HERE
-   
-# 1. This route keeps Render happy (fixes the 404 health check)
+    resend.Emails.send(params)
+
+# 1. This route keeps Render happy
 @app.get("/")
 def read_root():
     return {"status": "online", "message": "VoltShield API is ready for tasks."}
 
-# 2. This route handles the AI analysis and email notification directly
+# 2. This route handles the AI analysis and email notification
 @app.post("/run-crew")
 async def run_crew_endpoint(request: CustomerRequest):
     try:
-        # --- ADDED: Send email notification in background thread ---
         await asyncio.to_thread(send_owner_email, request)
 
-        # Setup the Agent
         analyst = Agent(
             role="Expert Electrician",
             goal="Provide safety and scope analysis",
@@ -67,23 +68,21 @@ async def run_crew_endpoint(request: CustomerRequest):
             llm="gpt-4o-mini"
         )
 
-        # Setup the Task
         task = Task(
-            description=f"Issue from {request.customer_name}: {request.issue_description}",
-            expected_output="Safety hazards, project scale, and next steps.",
+            description=f"Analyze electrical safety for: {request.issue_description}",
+            expected_output="Professional safety evaluation and steps",
             agent=analyst
         )
 
-        # Execute
-        crew = Crew(agents=[analyst], tasks=[task])
-        result = await crew.akickoff()
-        
-        # Return result to user
-        return {
-            "status": "success", 
-            "customer": request.customer_name,
-            "analysis": str(result)
-        }
+        crew = Crew(
+            agents=[analyst],
+            tasks=[task],
+            verbose=True
+        )
+
+        result = crew.kickoff()
+        return {"status": "success", "analysis": str(result)}
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
