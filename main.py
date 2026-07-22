@@ -12,6 +12,13 @@ resend.api_key = os.environ.get("RESEND_API_KEY")
 
 app = FastAPI(title="VoltShield API")
 
+# --- ADD THIS CHECK HERE ---
+openai_key = os.environ.get("OPENAI_API_KEY")
+if not openai_key:
+    raise HTTPException(status_code=500, detail="API key is invalid")
+os.environ["OPENAI_API_KEY"] = openai_key
+# ---------------------------
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
