@@ -2,12 +2,24 @@ import asyncio
 import smtplib
 from email.mime.text import MIMEText
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from crewai import Agent, Task, Crew
 
 app = FastAPI(title="VoltShield API")
 
+# Allow frontend requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Set to specific domains in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 class CustomerRequest(BaseModel):
+
+
     customer_name: str
     email: str
     issue_description: str
