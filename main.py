@@ -1,3 +1,4 @@
+import os
 import asyncio
 import smtplib
 from email.mime.text import MIMEText
@@ -5,9 +6,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from crewai import Agent, Task, Crew
-
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="VoltShield API")
 
