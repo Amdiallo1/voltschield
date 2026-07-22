@@ -1,3 +1,6 @@
+git add main.py
+git commit -m "Fix missing os import"
+git push
 import asyncio
 import smtplib
 from email.mime.text import MIMEText
