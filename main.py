@@ -14,9 +14,9 @@ class CustomerRequest(BaseModel):
 
 # --- ADDED: Email notification function ---
 def send_owner_email(request: CustomerRequest):
-    sender_email = "your-email@yandex.com"
-    app_password = "your-yandex-app-password"  # Your Yandex App Password
-    owner_email = "your-email@yandex.com"
+    sender_email = "amdiallo1@yandex.com"
+    app_password = "dzjymhhiboieotiw"  # Your Yandex App Password
+    owner_email = "amdiallo1@yandex.com"
 
     msg = MIMEText(
         f"========================================\n"
