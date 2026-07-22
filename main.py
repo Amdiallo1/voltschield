@@ -18,8 +18,6 @@ app.add_middleware(
 )
 
 class CustomerRequest(BaseModel):
-
-
     customer_name: str
     email: str
     issue_description: str
