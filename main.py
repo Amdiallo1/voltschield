@@ -1,23 +1,22 @@
 import os
-import resend
 import asyncio
-import smtplib
-from email.mime.text import MIMEText
+import traceback
+import resend
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from crewai import Agent, Task, Crew
 
-resend.api_key = os.environ.get("RESEND_API_KEY")
-
-app = FastAPI(title="VoltShield API")
-
-# --- ADD THIS CHECK HERE ---
-openai_key = os.environ.get("OPENAI_API_KEY")
+# 1. Validate and set environment variables
+openai_key = os.getenv("OPENAI_API_KEY")
 if not openai_key:
-    raise HTTPException(status_code=500, detail="API key is invalid")
+    raise RuntimeError("OPENAI_API_KEY environment variable is missing.")
 os.environ["OPENAI_API_KEY"] = openai_key
-# ---------------------------
+
+resend.api_key = os.getenv("RESEND_API_KEY")
+
+# 2. Initialize FastAPI app
+app = FastAPI(title="VoltShield API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,69 +26,59 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 3. Request Schema
 class CustomerRequest(BaseModel):
     customer_name: str
     email: str
     issue_description: str
 
-def send_owner_email(request: CustomerRequest):
-    owner_email = os.environ.get("OWNER_EMAIL", "amdiallo1@yandex.com")
-    
-    email_content = (
-        f"========================================\n"
-        f"    VOLTSHIELD COMPLIANCE INSPECTION\n"
-        f"========================================\n\n"
-        f"A new inspection request has been submitted for a commercial or multi-family property.\n\n"
-        f"• Customer Name: {request.customer_name}\n"
-        f"• Customer Email: {request.email}\n\n"
-        f"Issue Description / Safety Details:\n"
-        f"{request.issue_description}\n\n"
-        f"----------------------------------------\n"
-        f"CrewAI analysis is processing in the background."
-    )
+# 4. CrewAI Setup
+inspector_agent = Agent(
+    role="Electrical Safety Inspector",
+    goal="Analyze electrical issues for compliance, safety risks, and necessary remediation steps.",
+    backstory="Expert electrical engineer specializing in commercial and residential compliance codes.",
+    verbose=True
+)
 
-    params = {
-        "from": "VoltShield <onboarding@resend.dev>",
-        "to": [owner_email],
-        "subject": f"New VoltShield Request from {request.customer_name}",
-        "text": email_content,
-    }
-    resend.Emails.send(params)
+inspection_task = Task(
+    description=(
+        "Analyze the following electrical issue reported by {customer_name} "
+        "(Email: {email}):\n\n'{issue_description}'\n\n"
+        "Provide a structured safety analysis, risk level, and compliance recommendations."
+    ),
+    expected_output="A professional safety analysis and compliance report.",
+    agent=inspector_agent
+)
 
-def run_crew_analysis(request: CustomerRequest):
-    analyst = Agent(
-        role="Expert Electrician",
-        goal="Provide safety and scope analysis",
-        backstory="Expert with 30 years experience",
-        llm="gpt-4o-mini"
-    )
+voltshield_crew = Crew(
+    agents=[inspector_agent],
+    tasks=[inspection_task],
+    verbose=True
+)
 
-    task = Task(
-        description=f"Analyze electrical safety for: {request.issue_description}",
-        expected_output="Professional safety evaluation and steps",
-        agent=analyst
-    )
-
-    crew = Crew(
-        agents=[analyst],
-        tasks=[task],
-        verbose=True
-    )
-
-    return crew.kickoff()
-
-# 1. This route keeps Render happy
+# 5. Endpoints
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "VoltShield API is ready for tasks."}
+    return {"status": "online", "service": "VoltShield API"}
 
-# 2. This route handles the AI analysis and email notification
 @app.post("/run-crew")
-async def run_crew_endpoint(request: CustomerRequest):
+async def run_crew(request: CustomerRequest):
     try:
-        await asyncio.to_thread(send_owner_email, request)
-        result = await asyncio.to_thread(run_crew_analysis, request)
-        return {"status": "success", "analysis": str(result)}
-        
+        def execute_crew():
+            return voltshield_crew.kickoff(inputs={
+                "customer_name": request.customer_name,
+                "email": request.email,
+                "issue_description": request.issue_description
+            })
+
+        result = await asyncio.to_thread(execute_crew)
+        return {"status": "success", "result": str(result)}
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        error_detail = {
+            "error_type": type(e).__name__,
+            "message": str(e),
+            "traceback": traceback.format_exc()
+        }
+        print("CRITICAL ERROR:", error_detail)
+        raise HTTPException(status_code=500, detail=error_detail)
